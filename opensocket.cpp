@@ -29,7 +29,7 @@ int open_clientfd(char* hostname, char* port) {
     } else
         return clientfd;
 }
-int open_listenfd(char* hostname, char* port) {
+int open_listenfd(char* port) {
     struct addrinfo hints, *listp, *p;
     int listenfd,optval = 1;
     memset(&hints, 0, sizeof(struct addrinfo));

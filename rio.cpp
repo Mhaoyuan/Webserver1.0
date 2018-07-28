@@ -86,7 +86,7 @@ void rio_readinitb(rio_t* rp, int fd)
     rp->rio_bufptr = rp->rio_buf;
 }
 
-size_t rio_readlineb(rio_t* rp, void* usrbuf, size_t maxlen)
+ssize_t rio_readlineb(rio_t* rp, void* usrbuf, size_t maxlen)
 {
     int n,rc;
     char c,*bufp = (char*)usrbuf;
