@@ -61,6 +61,8 @@ arpa/inet.h
 -
 opensocket.h
 /home/genius/Documents/Webserver1.0/opensocket.h
+rio.h
+/home/genius/Documents/Webserver1.0/rio.h
 
 /home/genius/Documents/Webserver1.0/opensocket.cpp
 opensocket.h

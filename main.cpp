@@ -12,8 +12,8 @@ using namespace std;
  */
 void doit(int fd);
 void read_requestdrs(rio_t *rp);
-int parse_uir(char*uri, char*filename, char*cgiargs);
-void serve_static(int fd, char* filename, int filesize);
+int parse_uri(char*uri, char*filename, char*cgiargs);
+void server_static(int fd, char* filename, int filesize);
 void get_filtype(char *filename, char* filetype);
 void serve_dynamic(int fd, char*filename , char* cgiargs);
 void clienterror(int fd, char *cause, char* errnum,
@@ -38,6 +38,8 @@ int main(int argc, char **argv) {
 //        exit(1);
 //    }
     listenfd = open_listenfd(argv[1]);
+    char a[100];
+//    sprintf(a,"%s","asdfasgfdfsgasdfgasfsdd");
 
     while(1)
     {
@@ -72,6 +74,30 @@ void doit(int fd) {
     read_requestdrs(&rio);
     /* Parse URI from GET request */
     is_static = parse_uri(uri, filename, cgiargs);
+    cout << stat("../home.html", &sbuf) <<endl;
+    cout << errno <<endl;
+    if(stat(filename, &sbuf)<0)
+    {
+        clienterror(fd,filename, "404", "Not found",
+                    "webserver couldn't find this file");
+        return;
+    }
+    if(is_static){
+        if(!(S_ISREG(sbuf.st_mode))|| !S_IRUSR & sbuf.st_mode){
+            clienterror(fd,filename, "403", "Forbidden",
+                        "WebServer could't run the CGI program");
+            return;
+        }
+        server_static(fd,filename, sbuf.st_size);
+    }
+    else {
+        if(!(S_ISREG(sbuf.st_mode)) || !(S_IRUSR & sbuf.st_mode))
+        {
+            clienterror(fd, filename, "403", "Forbidden", "WebServer couldn't run the CGI program");
+            return;
+        }
+        serve_dynamic(fd,filename, cgiargs);
+    }
 
 
 }
@@ -85,12 +111,12 @@ void read_requestdrs(rio_t *rp) {
         printf("%s", buf);
     }
 }
-int parse_uir(char*uri, char*filename, char*cgiargs){
+int parse_uri(char*uri, char*filename, char*cgiargs){
     char *ptr;
     if(!strstr(uri,"cgi-bin")) //Static cintent
     {
         strcpy(cgiargs,"");
-        strcpy(filename, ".");
+        strcpy(filename, "..");
         strcat(filename,uri);
         if(uri[strlen(uri)-1] == '/')
             strcat(filename,"home.html");
@@ -109,16 +135,50 @@ int parse_uir(char*uri, char*filename, char*cgiargs){
         return 0;
     }
 }
-void server_static(char *uri, char* filename, char *cgiargs)
+void server_static(int fd, char* filename, int filesize)
 {
     int srcfd;
     char *srcp ,filetype[MAXLINE], buf[MAXBUF];
     /* Send response headers to client*/
-
+//    cout << "12345232634756"<<endl;
     get_filetype(filename,filetype);
+    sprintf(buf,"HTTP/1.0 OK \r\n");
+    sprintf(buf, "%sServer: WebServer:\r\n", buf);
+    sprintf(buf, "%sConnection:close\r\n", buf);
+    sprintf(buf,"%sContent-length: %d\r\n", buf,filesize);
+    sprintf(buf,"%sContent-type: %s\r\n\r\n",buf, filetype);
+
+    rio_writen(fd,buf,strlen(buf));
+    printf("Response headers:\n");
+    printf("%s",buf);
+    /* Send response body to client*/
+
+    srcfd = open(filename , O_RDONLY, 0);
+    srcp = (char*)mmap(0, filesize,PROT_READ, MAP_PRIVATE,srcfd, 0);
+    close(srcfd);
+    rio_writen(fd,srcp, filesize);
+    munmap(srcp,filesize);
+
+
 }
 void get_filtype(char *filename, char* filetype){}
-void serve_dynamic(int fd, char*filename , char* cgiargs){}
+void serve_dynamic(int fd, char*filename , char* cgiargs){
+    char buf[MAXLINE], *emptylist[] = {NULL};
+    /* Return first part of HTTP response*/
+    sprintf(buf,"HTTP/1.0 200 OK \r\n");
+    rio_writen(fd,buf,strlen(buf));
+    sprintf(buf,"Server: Webserve\r\n");
+    rio_writen(fd, buf, strlen(buf));
+
+    if (fork()==0)
+    {
+        /* Real server would set all CGI vars here*/
+        setenv("QUERY_STRING",cgiargs,1);
+        dup2(fd,STDERR_FILENO); /* REDIRECT STDOUT TO CLIENT*/
+        execve(filename, emptylist, environ);
+    }
+    wait(NULL);
+}
 void clienterror(int fd, char *cause, char* errnum,
                  char*shortmsg, char* longmsg){
     char buf[MAXLINE], body[MAXLINE];
